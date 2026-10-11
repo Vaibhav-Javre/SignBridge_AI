@@ -50,10 +50,10 @@ export class CameraController {
     this.lastInferenceTime = 0;
     this.onFrameInference = options.onFrameInference || null;
 
-    // Reusable offscreen canvas for zero GC allocation during frame capture (matches model 320x240)
+    // Reusable offscreen canvas for zero GC allocation during frame capture (256x192 ultra-fast mobile pipeline)
     this.captureCanvas = document.createElement("canvas");
-    this.captureCanvas.width = 320;
-    this.captureCanvas.height = 240;
+    this.captureCanvas.width = 256;
+    this.captureCanvas.height = 192;
     this.captureCtx = this.captureCanvas.getContext("2d", { willReadFrequently: true });
   }
 
@@ -65,6 +65,15 @@ export class CameraController {
   notify(status, details = {}) {
     this.status = status;
     this.listeners.forEach(fn => fn({ status, fps: this.fps, ...details }));
+  }
+
+  adjustViewportAspect() {
+    if (!this.video || !this.video.videoWidth || !this.video.videoHeight) return;
+    const parent = this.video.parentElement;
+    if (parent) {
+      parent.style.aspectRatio = `${this.video.videoWidth} / ${this.video.videoHeight}`;
+    }
+    this.resizeCanvas();
   }
 
   async start() {
@@ -90,12 +99,15 @@ export class CameraController {
       this.video.srcObject = this.stream;
       await new Promise((resolve) => {
         this.video.onloadedmetadata = () => {
-          this.video.play().then(resolve);
+          this.video.play().then(() => {
+            this.adjustViewportAspect();
+            resolve();
+          });
         };
       });
 
       this.isActive = true;
-      this.resizeCanvas();
+      this.adjustViewportAspect();
       window.addEventListener("resize", this.handleResize);
 
       this.notify("running", { message: "Camera active and tracking" });
@@ -130,6 +142,11 @@ export class CameraController {
       this.video.srcObject = null;
     }
 
+    const parent = this.video?.parentElement;
+    if (parent) {
+      parent.style.aspectRatio = "";
+    }
+
     window.removeEventListener("resize", this.handleResize);
 
     if (this.ctx && this.canvas) {
@@ -158,8 +175,8 @@ export class CameraController {
   }
 
   /**
-   * Ultra-fast JPEG frame capture (360x270 @ 0.65 JPEG)
-   * Small payload (~12KB) transfers to Python backend in < 2ms!
+   * Ultra-fast lightweight JPEG frame capture (256x192 @ 0.48 JPEG)
+   * Featherweight payload (~4-5KB) transfers in ~20ms even over mobile 4G/5G tunnels!
    */
   captureFrameBase64() {
     if (!this.isActive || !this.video.videoWidth) return null;
@@ -175,7 +192,7 @@ export class CameraController {
     this.captureCtx.drawImage(this.video, 0, 0, w, h);
     this.captureCtx.restore();
 
-    return this.captureCanvas.toDataURL("image/jpeg", 0.65);
+    return this.captureCanvas.toDataURL("image/jpeg", 0.48);
   }
 
   setLandmarksAndBbox(landmarks, bbox) {
@@ -212,12 +229,13 @@ export class CameraController {
     // Draw smoothed 60 FPS overlay on canvas
     this.drawOverlay();
 
-    // Trigger AI inference tick at maximum continuous throughput (zero delay backlog)
-    if (this.onFrameInference && !this.isInferring) {
-      this.lastInferenceTime = now;
+    // Trigger AI inference with ~65ms minimum pacing (max ~15 FPS) to eliminate mobile network bufferbloat
+    const minInterval = 65;
+    if (this.onFrameInference && !this.isInferring && (now - this.lastInferenceTime >= minInterval)) {
       const frameData = this.captureFrameBase64();
       if (frameData) {
         this.isInferring = true;
+        this.lastInferenceTime = now;
         this.onFrameInference(frameData).finally(() => {
           this.isInferring = false;
         });
@@ -235,8 +253,8 @@ export class CameraController {
 
     if (!this.targetLandmarks || this.targetLandmarks.length === 0) return;
 
-    // Smooth Lerp Interpolation for 60fps buttery movement
-    const lerp = 0.55;
+    // Fast responsive Lerp Interpolation for immediate tracking response
+    const lerp = 0.72;
     if (!this.smoothLandmarks || this.smoothLandmarks.length !== this.targetLandmarks.length) {
       this.smoothLandmarks = this.targetLandmarks.map(p => [p[0], p[1]]);
     } else {

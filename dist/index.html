@@ -12,8 +12,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   
-  <script type="module" crossorigin src="/assets/index-DuEstd-o.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-DlrgRVm9.css">
+  <script type="module" crossorigin src="/assets/index-RGcQGi4q.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-pGjDaZ8e.css">
 </head>
 <body>
   <!-- Skip link for keyboard accessibility -->
@@ -541,7 +541,7 @@
             <div class="endpoint-input-wrap">
               <label for="backendUrlInput" class="visually-hidden">Backend API URL</label>
               <span class="endpoint-prefix">API:</span>
-              <input type="text" id="backendUrlInput" class="endpoint-input" value="http://localhost:5000" placeholder="http://localhost:5000">
+              <input type="text" id="backendUrlInput" class="endpoint-input" value="" placeholder="Default: Same Origin (/api via Vite)">
               <button type="button" id="btnTestBackend" class="btn btn-xs btn-outline">Test Ping</button>
             </div>
             <div class="backend-status-pill" id="backendStatusPill">
@@ -575,8 +575,11 @@
               <li>Click <strong>"Live Python ML Backend"</strong> above and hit <strong>"Test Ping"</strong>!</li>
             </ol>
             <div class="guide-api-schema">
-              <code>POST http://localhost:5000/api/predict</code> &bull; Payload: <code>{"image": "data:image/jpeg;base64,..."}</code>
+              <code>POST /api/predict</code> &bull; Proxied through Vite to port 5000 &bull; Payload: <code>{"image": "data:image/jpeg;base64,..."}</code>
             </div>
+            <p style="margin-top: 8px; font-size: 0.82rem; color: #94a3b8; line-height: 1.4;">
+              📱 <strong>Mobile & ngrok testing:</strong> Leave the API input blank! Vite automatically proxies all <code>/api</code> calls to your local backend on port 5000 over your single ngrok HTTPS tunnel, avoiding browser mixed-content blocks.
+            </p>
           </div>
         </div>
 

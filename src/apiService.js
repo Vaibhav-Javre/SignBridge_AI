@@ -8,9 +8,11 @@
 
 import { GESTURE_CLASSES } from "./gesturesData.js";
 
+const DEFAULT_BACKEND_URL = "";
+
 export class ApiService {
-  constructor(baseUrl = "http://localhost:5000") {
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
+  constructor(baseUrl = null) {
+    this.baseUrl = this.resolveBaseUrl(baseUrl);
     this.isDemoMode = true; // default to demo mode until backend is connected
     this.connectionStatus = "idle"; // 'idle' | 'checking' | 'connected' | 'disconnected'
     this.lastError = null;
@@ -18,8 +20,66 @@ export class ApiService {
     this.demoGestureQueue = ["ok", "peace", "like", "stop", "palm", "call", "four", "one"];
   }
 
+  normalizeBaseUrl(url) {
+    if (!url) {
+      return DEFAULT_BACKEND_URL;
+    }
+    const trimmed = String(url).trim().replace(/\/+$/, "");
+    if (trimmed === "/" || trimmed.toLowerCase() === "relative" || trimmed.toLowerCase() === "(same origin)") {
+      return "";
+    }
+    return trimmed;
+  }
+
+  resolveBaseUrl(baseUrl = null) {
+    if (baseUrl !== null && baseUrl !== undefined) {
+      return this.normalizeBaseUrl(baseUrl);
+    }
+
+    if (typeof window === "undefined") {
+      return DEFAULT_BACKEND_URL;
+    }
+
+    try {
+      const isRemoteHost = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+      const urlParams = new URLSearchParams(window.location.search);
+      const backendFromQuery = urlParams.get("backend");
+      if (backendFromQuery) {
+        return this.normalizeBaseUrl(backendFromQuery);
+      }
+
+      const savedUrl = window.localStorage.getItem("signbridge_backend_url");
+      if (savedUrl) {
+        // If saved URL points to localhost but the page is opened on mobile/ngrok,
+        // localhost points to the phone (offline). Discard and use Vite's same-origin proxy instead.
+        if (isRemoteHost && (savedUrl.includes("localhost") || savedUrl.includes("127.0.0.1"))) {
+          window.localStorage.removeItem("signbridge_backend_url");
+          return DEFAULT_BACKEND_URL;
+        }
+        return this.normalizeBaseUrl(savedUrl);
+      }
+    } catch (err) {
+      console.warn("Unable to read backend URL from query/localStorage:", err);
+    }
+
+    return DEFAULT_BACKEND_URL;
+  }
+
   setBaseUrl(url) {
-    this.baseUrl = (url || "http://localhost:5000").replace(/\/+$/, "");
+    const normalizedUrl = this.normalizeBaseUrl(url);
+    this.baseUrl = normalizedUrl;
+
+    if (typeof window !== "undefined") {
+      try {
+        if (!normalizedUrl) {
+          window.localStorage.removeItem("signbridge_backend_url");
+        } else {
+          window.localStorage.setItem("signbridge_backend_url", normalizedUrl);
+        }
+      } catch (err) {
+        console.warn("Could not persist backend URL:", err);
+      }
+    }
   }
 
   setDemoMode(enabled) {
@@ -69,7 +129,7 @@ export class ApiService {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 1400);
 
     try {
       const response = await fetch(`${this.baseUrl}/api/predict`, {

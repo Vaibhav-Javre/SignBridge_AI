@@ -94,6 +94,10 @@ function init() {
   renderVocabularyGallery();
   setupScrollSpy();
 
+  const initialBackendUrl = apiService.resolveBaseUrl();
+  backendUrlInput.value = initialBackendUrl;
+  apiService.setBaseUrl(initialBackendUrl);
+
   // Automatically probe local Python ML backend on startup
   autoDetectBackend();
 }
@@ -183,7 +187,8 @@ function setDemoMode(isDemo) {
 
     alertModeBadge.textContent = "LIVE BACKEND MODE";
     alertModeBadge.style.background = "#10B981";
-    alertModeText.innerHTML = `Live ML inference requested. Sending webcam frames to <code>${apiService.baseUrl}/api/predict</code>.`;
+    const endpointDisplay = apiService.baseUrl ? `${apiService.baseUrl}/api/predict` : `/api/predict (via Vite Proxy)`;
+    alertModeText.innerHTML = `Live ML inference requested. Sending webcam frames to <code>${endpointDisplay}</code>.`;
     inferenceSourceTag.textContent = "Live Python Model (Flask)";
     inferenceSourceTag.style.color = "#10B981";
     confDisclaimer.textContent = "* Live Random Forest model confidence from local Python service.";

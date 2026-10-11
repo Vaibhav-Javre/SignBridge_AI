@@ -24,6 +24,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import cv2
 import joblib
 import numpy as np
+import threading
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -45,13 +46,14 @@ MODELS_DIR = os.path.join(BASE_DIR, "..", "models")
 RF_MODEL_PATH = os.path.join(MODELS_DIR, "signbridge_random_forest.pkl")
 HAND_MODEL_PATH = os.path.join(MODELS_DIR, "hand_landmarker.task")
 
-PROCESS_WIDTH = 320
-PROCESS_HEIGHT = 240
+PROCESS_WIDTH = 256
+PROCESS_HEIGHT = 192
 
-# Global Model holders
+# Global Model holders and thread-safety lock
 model = None
 detector = None
 timestamp_ms = 0
+inference_lock = threading.Lock()
 
 print("=" * 60)
 print("[SignBridge] Loading Random Forest Classifier...")
@@ -159,10 +161,16 @@ def predict():
         rgb_small = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_small)
 
-        timestamp_ms += 33
+        # Real monotonic millisecond timestamp for MediaPipe VIDEO mode
+        current_ts = int(time.perf_counter() * 1000)
+        if current_ts <= timestamp_ms:
+            timestamp_ms += 1
+        else:
+            timestamp_ms = current_ts
 
-        # MediaPipe Video Mode tracking
-        result = detector.detect_for_video(mp_image, timestamp_ms)
+        # Thread-safe MediaPipe tracking & RF inference
+        with inference_lock:
+            result = detector.detect_for_video(mp_image, timestamp_ms)
 
         if not result.hand_landmarks or len(result.hand_landmarks) == 0:
             latency_ms = round((time.perf_counter() - start_time) * 1000, 1)
